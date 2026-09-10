@@ -447,7 +447,7 @@
             <h4>Cambiar Contrastes</h4>
             <button class="boton-panel" id="contraste-1" onclick="cambiarContrastes(1)" type="button">1</button>
             <button class="boton-panel" id="contraste-2" onclick="cambiarContrastes(2)" type="button">2</button>
-            <button class="boton-panel" id="contrate-3" onclick="cambiarContrastes(3)" type="button">3</button>
+            <button class="boton-panel" id="contraste-3" onclick="cambiarContrastes(3)" type="button">3</button>
           </div>
           <div class="col-md-3 ">
             <h4>Invertir colores</h4>
@@ -957,25 +957,15 @@ function toggleNav(){
 })();
 </script>
 
-<!-- ====================== EmailJS: SDK + envío del formulario de contacto ====================== -->
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<!-- ====================== Formulario de contacto: envío vía Cloudflare Worker -> Brevo ====================== -->
 <script>
-  // Reemplaza con tu Public Key (Account -> General en EmailJS)
-  emailjs.init("V3I4H076F8x8Ae-3y");
-</script>
-<script>
-/* ===== Formulario de contacto: envía notificación al pasante y confirmación al remitente ===== */
 (function(){
   var form = document.getElementById('formContacto');
   if(!form) return;
   var status = document.getElementById('cfStatus');
 
-  // Reemplaza con tu Service ID (Email Services en EmailJS)
-  var SERVICE_ID = 'service_s2hn1d9';
-  // Plantilla de notificación al pasante (To Email fijo: pasantedeinnovacion@hun.edu.co)
-  var TEMPLATE_NOTIFICACION = 'template_icijthp';
-  // Plantilla de confirmación al remitente (To Email: {{email}})
-  var TEMPLATE_CONFIRMACION = 'template_xwik6ok';
+  // Reemplaza con la URL real de tu Worker desplegado en Cloudflare
+  var WORKER_URL = 'https://tu-worker.tu-cuenta.workers.dev';
 
   form.addEventListener('submit', function(e){
     e.preventDefault();
@@ -1001,28 +991,26 @@ function toggleNav(){
     status.textContent = 'Enviando mensaje...';
     status.className = 'cf-status ok';
 
-    var params = {
-  name: nombre,
-  from_name: nombre,
-  email: correo,
-  from_email: correo,
-  to_email: correo,
-  subject: tema,
-  message: mensaje
-};
-
-    Promise.all([
-      emailjs.send(SERVICE_ID, TEMPLATE_NOTIFICACION, params),
-      emailjs.send(SERVICE_ID, TEMPLATE_CONFIRMACION, params)
-    ]).then(function(){
+    fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre: nombre, correo: correo, tema: tema, mensaje: mensaje })
+    })
+    .then(function(res){
+      if(!res.ok) return res.json().then(function(d){ throw new Error(d.error || ('HTTP ' + res.status)); });
+      return res.json();
+    })
+    .then(function(){
       status.textContent = '¡Mensaje enviado! Te llegará una confirmación a tu correo.';
       status.className = 'cf-status ok';
       form.reset();
-    }).catch(function(err){
-      console.error('EmailJS error:', err);
+    })
+    .catch(function(err){
+      console.error('Brevo/Worker error:', err);
       status.textContent = 'Hubo un problema al enviar el mensaje. Intenta de nuevo o escríbenos directamente a grupequidad_bog@unal.edu.co.';
       status.className = 'cf-status err';
-    }).finally(function(){
+    })
+    .finally(function(){
       submitBtn.disabled = false;
     });
   });
